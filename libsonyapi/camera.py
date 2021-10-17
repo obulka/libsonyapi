@@ -5,23 +5,30 @@ import xml.etree.ElementTree as ET
 
 
 class Camera(object):
-    def __init__(self):
+    def __init__(self, network_interface=None):
         """
         create camera object
         """
+        self._network_interface = network_interface
         self.xml_url = self.discover()
         self.name, self.api_version, self.services = self.connect(self.xml_url)
         self.camera_endpoint_url = self.services["camera"] + "/camera"
-        self.available_apis = self.do("getAvailableApiList")["result"]
+        self.available_apis = self.do("getAvailableApiList")
+
         # prepare camera for rec mode
-        if "startRecMode" in self.available_apis[0]:
+        if "startRecMode" in self.available_apis:
             self.do("startRecMode")
-        self.available_apis = self.do("getAvailableApiList")["result"]
-        self.connected = False
+
 
     def discover(self):
-        """
-        discover camera using upnp ssdp method, return url for device xml
+        """ Discover camera.
+
+        Raises:
+            ConnectionError: If the camera cannot be discovered, usually
+                because you are not connected to the camera's wifi.
+
+        Returns:
+            str: The XML URL of the camera.
         """
         msg = (
             "M-SEARCH * HTTP/1.1\r\n"
@@ -31,23 +38,32 @@ class Camera(object):
             "ST: urn:schemas-sony-com:service:ScalarWebAPI:1\r\n"
             "\r\n"
         ).encode()
+
         # Set up UDP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        s.settimeout(2)
-        s.sendto(msg, ("239.255.255.250", 1900))
+        if not hasattr(socket, 'SO_BINDTODEVICE'):
+            socket.SO_BINDTODEVICE = 25
+
+        socket_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        if self._network_interface is not None:
+            socket_.setsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_BINDTODEVICE,
+                self._network_interface.encode(),
+            )
+        socket_.settimeout(2)
+        socket_.sendto(msg, ("239.255.255.250", 1900))
+
         try:
             while True:
-                data, addr = s.recvfrom(65507)
+                data, addr = socket_.recvfrom(65507)
                 decoded_data = data.decode()
                 # get xml url from ssdp response
                 for item in decoded_data.split("\n"):
                     if "LOCATION" in item:
-                        return item.strip().split(" ")[
-                            1
-                        ]  # get location url from ssdp response
-            self.connected = True
+                        return item.strip().split(" ")[1]
+
         except socket.timeout:
-            raise ConnectionError("you are not connected to the camera's wifi")
+            raise requests.exceptions.ConnectionError("You are not connected to the camera's wifi.")
 
     def connect(self, xml_url):
         """
@@ -74,8 +90,19 @@ class Camera(object):
                 "{urn:schemas-sony-com:av}X_ScalarWebAPI_ActionList_URL"
             ).text
             api_service_urls[service_type] = action_url
+
         return name, api_version, api_service_urls
 
+    @property
+    def connected(self):
+        """bool: True if the camera is connected"""
+        try:
+            requests.get(self.camera_endpoint_url, timeout=0.2)
+            return True
+        except requests.exceptions.ConnectionError:
+            return False
+
+    @property
     def info(self):
         """
         returns camera info(name, api version, supported services, available apis) in a dictionary
@@ -87,29 +114,71 @@ class Camera(object):
             "available apis": self.available_apis,
         }
 
-    def post_request(self, url, method, param=[]):
+    def _post_request(self, method, param=[]):
         """
-        sends post request to url with method and param as json
         """
         if type(param) is not list:
             param = [param]
         json_request = {"method": method, "params": param, "id": 1, "version": "1.0"}
-        request = requests.post(url, json.dumps(json_request))
+        request = requests.post(self.camera_endpoint_url, json.dumps(json_request))
         response = json.loads(request.content)
-        if "error" in list(response.keys()):
-            print("Error: ")
-            print(response)
-        else:
-            return response
 
-    def do(self, method, param=[]):
-        """
-        this calls to camera service api, require method and param args
-        """
-        # TODO: response handler, return result of do, etc
-        response = self.post_request(self.camera_endpoint_url, method, param)
         return response
 
+    def do(self, method, param=[]):
+        """"""
+        response = self._post_request(method, param=param)
 
-class ConnectionError(Exception):
+        if "error" in response:
+            error = response["error"]
+            error_code = error[0]
+            error_message = error[-1]
+
+            if error_code == 1:
+                raise NotAvailableError(error_message)
+
+            elif error_code == 3:
+                raise IllegalArgumentError(error_message + ": {}".format(param))
+
+            elif error_code == 12:
+                raise InvalidActionError("Invalid action: " + error_message)
+
+            elif error_code == 403:
+                raise ForbiddenError(error_message)
+
+            elif error_code == 500:
+                raise OperationFailedError(error_message)
+
+            else:
+                raise ValueError("Unknown error: " + error_message)
+
+        else:
+            result = response.get("result", [])
+            if len(result) == 0:
+                return True
+
+            elif len(result) == 1:
+                return result[0]
+
+            else:
+                return result
+
+
+class NotAvailableError(Exception):
+    pass
+
+
+class IllegalArgumentError(Exception):
+    pass
+
+
+class InvalidActionError(Exception):
+    pass
+
+
+class ForbiddenError(Exception):
+    pass
+
+
+class OperationFailedError(Exception):
     pass
