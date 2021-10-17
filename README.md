@@ -26,8 +26,8 @@ Requires:
 # QUICKSTART
 
 ```python
-from libsonyapi.camera import Camera
-from libsonyapi.actions import Actions
+from libsonyapi import Camera
+from libsonyapi import Actions
 
 camera = Camera()  # create camera instance
 camera_info = camera.info()  # get camera camera_info
