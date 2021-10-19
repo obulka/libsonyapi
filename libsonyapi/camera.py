@@ -1,4 +1,5 @@
 import socket
+import time
 import requests
 import json
 import xml.etree.ElementTree as ET
@@ -18,7 +19,6 @@ class Camera(object):
         # prepare camera for rec mode
         if "startRecMode" in self.available_apis:
             self.do("startRecMode")
-
 
     def discover(self):
         """ Discover camera.
@@ -63,7 +63,7 @@ class Camera(object):
                         return item.strip().split(" ")[1]
 
         except socket.timeout:
-            raise requests.exceptions.ConnectionError("You are not connected to the camera's wifi.")
+            raise ConnectionError("You are not connected to the camera's wifi.")
 
     def connect(self, xml_url):
         """
