@@ -1,5 +1,4 @@
 import socket
-import time
 import requests
 import json
 import xml.etree.ElementTree as ET
