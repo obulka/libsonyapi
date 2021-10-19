@@ -11,11 +11,11 @@ Python binding for the [Sony Camera API](https://developer.sony.com/develop/came
 
 # INSTALLATION
 
-## `pip install libsonyapi`
+## `python3 -m pip install -e git+https://github.com/obulka/libsonyapi.git#egg=libsonyapi`
 
 **OR FROM SOURCE:**
 
-1. `git clone https://github.com/petabite/libsonyapi.git` or download the [latest release](https://github.com/petabite/libsonyapi/releases)
+1. `git clone https://github.com/obulka/libsonyapi.git` or download the [latest release](https://github.com/petabite/libsonyapi/releases)
 2. `cd libsonyapi`
 3. `python setup.py install`
 
@@ -26,8 +26,8 @@ Requires:
 # QUICKSTART
 
 ```python
-from libsonyapi.camera import Camera
-from libsonyapi.actions import Actions
+from libsonyapi import Camera
+from libsonyapi import Actions
 
 camera = Camera()  # create camera instance
 camera_info = camera.info()  # get camera camera_info
