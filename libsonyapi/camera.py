@@ -148,8 +148,11 @@ class Camera(object):
             elif error_code == 500:
                 raise OperationFailedError(error_message)
 
+            elif error_code == 40403:
+                raise LongShootingError(error_message)
+
             else:
-                raise ValueError("Unknown error: " + error_message)
+                raise ValueError(f"Error {error_code}: {error_message}")
 
         else:
             result = response.get("result", [])
@@ -180,4 +183,7 @@ class ForbiddenError(Exception):
 
 
 class OperationFailedError(Exception):
+    pass
+
+class LongShootingError(Exception):
     pass
